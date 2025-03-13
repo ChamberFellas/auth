@@ -4,6 +4,46 @@ version: v1
 baseUri: https://example.com/api/v1/external
 mediaType: application/json
 
+securitySchemes:
+  JWT:
+    description: Use a JSON Web Token (JWT) for authentication.
+    type: Pass Through
+    describedBy:
+      headers:
+        Authorization:
+          description: "JWT token in the format 'Bearer {token}'"
+          type: string
+      responses:
+        401:
+          description: Unauthorized - Invalid or expired token
+
+types:
+  User:
+    type: object
+    properties:
+      username: string
+      password: 
+        type: string
+        description: while the password will be hashed on the server side. can all passwords be hashed client side aswell, using H(password+spice) in this instance user the user name for the spice. (for anyone who doesnt do pure CS and is confused by this just reach out and ill be happy to explain what i mean :D)
+  
+  TokenResponse:
+    type: object
+    properties:
+      access_token: string
+      refresh_token: string
+  
+  UpdateUser:
+    type: object
+    properties:
+      passwordOLD: 
+        type: string
+        description: while the password will be hashed on the server side. can all passwords be hashed client side aswell, using H(password+spice) in this instance user the user name for the spice. (for anyone who doesnt do pure CS and is confused by this just reach out and ill be happy to explain what i mean :D)
+      passwordNEW: 
+        type: string
+        description: while the password will be hashed on the server side. can all passwords be hashed client side aswell, using H(password+spice) in this instance user the user name for the spice. (for anyone who doesnt do pure CS and is confused by this just reach out and ill be happy to explain what i mean :D)
+      username: string
+
+
 /status:
     get:
         description: Get status of the external API
@@ -34,3 +74,121 @@ mediaType: application/json
                         properties:
                             status: string
                             message: string
+
+
+
+
+
+/auth:
+  /register:
+    post:
+      description: Register a new user.
+      body:
+        application/json:
+          type: User
+      responses:
+        201:
+          description: User created successfully
+        400:
+          description: Invalid input
+
+  /login:
+    post:
+      description: User login, returns JWT token.
+      body:
+        application/json:
+          type: User
+      responses:
+        200:
+          description: Login successful, returns JWT
+          body:
+            application/json:
+              type: TokenResponse
+        401:
+          description: Invalid username or password
+
+  /refresh:
+    post:
+      description: Refresh access token using a refresh token.
+      securedBy: [JWT]
+      body:
+        application/json:
+          properties:
+            refresh_token: string
+      responses:
+        200:
+          description: Returns a new access token
+          body:
+            application/json:
+              type: TokenResponse
+        401:
+          description: Invalid or expired refresh token
+
+  /me:
+    get:
+      description: Get the current authenticated user's data.
+      securedBy: [JWT]
+      responses:
+        200:
+          description: Returns user data
+        401:
+          description: Unauthorized
+
+    put:
+      description: Update the authenticated user's information.
+      securedBy: [JWT]
+      body:
+        application/json:
+          type: UpdateUser
+      responses:
+        200:
+          description: User updated successfully
+        400:
+          description: Invalid input
+        401:
+          description: Unauthorized
+
+  /delete:
+    delete:
+      description: Delete the current user's account.
+      securedBy: [JWT]
+      responses:
+        200:
+          description: User deleted successfully
+        401:
+          description: Unauthorized
+
+/admin:
+  /users/{userId}:
+    put:
+      description: Admin updates a user's information.
+      securedBy: [JWT] # Ensure role-based authorization in implementation
+      body:
+        application/json:
+          type: UpdateUser
+      responses:
+        200:
+          description: User updated successfully
+        403:
+          description: Forbidden - Insufficient permissions
+    delete:
+      description: Admin deletes a user.
+      securedBy: [JWT]
+      responses:
+        200:
+          description: User deleted successfully
+        403:
+          description: Forbidden - Insufficient permissions
+
+/token/validate:
+  post:
+    description: Validate a given token.
+    body:
+      application/json:
+        properties:
+          token: string
+    responses:
+      200:
+        description: Token is valid
+      401:
+        description: Invalid or expired token
