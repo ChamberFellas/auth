@@ -1,5 +1,70 @@
 #%RAML 1.0
-title: Example Internal API
-version: v1
+title: Authentication Service (Internal)
+version: v2
 baseUri: https://example.com/api/v1/internal
 mediaType: application/json
+
+securitySchemes:
+  JWT:
+    description: Use a JSON Web Token (JWT) for authentication.
+    type: Pass Through
+    describedBy:
+      headers:
+        Authorization:
+          description: "JWT token in the format 'Bearer {token}'"
+          type: string
+      responses:
+        401:
+          description: Unauthorized - Invalid or expired token
+
+types:
+  TokenResponse:
+    type: object
+    properties:
+      access_token: string
+      refresh_token: string
+
+  RefreshTokenRequest:
+    type: object
+    properties:
+      refresh_token: string
+
+  TokenValidationResponse:
+    type: object
+    properties:
+      valid: boolean
+      username: string
+
+/auth/internal:
+  /validate:
+    post:
+      description: Validate JWT token internally
+      body:
+        application/json:
+          type: object
+          properties:
+            token: string
+      responses:
+        200:
+          body:
+            application/json:
+              type: TokenValidationResponse
+              example: { "valid": true, "username": "user1" }
+        401:
+          description: Invalid or expired token
+
+  /refresh:
+    post:
+      description: Refresh access token using a refresh token internally.
+      body:
+        application/json:
+          type: RefreshTokenRequest
+      responses:
+        200:
+          description: Returns a new access token
+          body:
+            application/json:
+              type: TokenResponse
+        401:
+          description: Invalid or expired refresh token
+
