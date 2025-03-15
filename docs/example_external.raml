@@ -57,7 +57,7 @@ types:
           description: Invalid input
 
   /login:
-    post:
+    get:
       description: User login, returns JWT tokens.
       body:
         application/json:
@@ -105,3 +105,4 @@ types:
             example: { "message": "Account deleted" }
       401:
         description: Unauthorized (e.g., invalid or expired JWT)
+
