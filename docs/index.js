@@ -1,11 +1,15 @@
 
-
+require('dotenv').config();
 const express = require('express');
 const app = express();
-
-// i believe i will also need:       const jwt = require('jsonwebtoken'); 
+const jwt = require('jsonwebtoken');
 
 const PORT = 8080;
+
+// Mock database (temporary)
+let users = [
+    { username: "bob", password: "bobsPassword", spice:"SpIcE" },
+];
 
 
 app.use( express.json() );
@@ -14,6 +18,23 @@ app.listen(
     PORT,
     () => console.log('its alive at : http://localhost:' + PORT)
 )
+
+//middle ware#######################################################################################################################################
+
+function generateAccessToken(user){
+    return accessToken = jwt.sign({user} , process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15s" });//short for testing
+}
+
+function generateRefreshToken(user){
+    return accessToken = jwt.sign({user} , process.env.REFRESH_TOKEN_SECRET, { expiresIn: "1d" });
+}
+
+
+
+
+
+
+//endpoints##########################################################################################################################################
 
 
 //token validation 
@@ -41,29 +62,25 @@ app.post('/auth/internal/validate',(req,res) => {
 });
 
 //token refreshing 
-app.get('/auth/internal/refresh',(req,res) => {
+app.post('/auth/internal/refresh',(req,res) => {
     const {testToken} = req.body;
     
     
     const newToken = 'ABcD';// this is a tempoary string showing a example new token 
-    const ValidToken = '1234';// this is a tempoary string showing a valid token so i can check everything works before linking it to the databas/ implementing jwt
+    const validRefreshToken = '1234';// this is a tempoary string showing a valid token so i can check everything works before linking it to the databas/ implementing jwt
 
-
-    if(!testToken){
-        res.status(418).send({
-            error: 'you didnt send a token silly!'
-        })
-    }else if (testToken == ValidToken){
-        res.status(200).send({
-            oldtoken: 'you succesfully sent the token : '+ testToken, 
-            newtoken: 'Your new token is : '+ newToken,
-            newTokenItem : newToken
-        })
-    }else{
-        res.status(401).send({
-            error: 'Invalid or expired token'
-        }) 
+    if (!refresh_token) {
+        return res.status(400).send({ error: "No refresh token provided" });
     }
+
+    if (refresh_token === validRefreshToken) {
+        return res.status(200).send({
+            access_token: "newAccessToken123",
+            refresh_token: "newRefreshToken456",
+        });
+    }
+
+    res.status(401).send({ error: "Invalid or expired refresh token" })
 
     
 });
@@ -98,38 +115,24 @@ app.post('/auth/register',(req,res) => {
     }*/
     // the above will neeed to be included but as i sont currently have anything to validate if a password and username is acceptable i had to comment it out for now
 
-    
 });
 
 
 //loging in a user
-app.get('/auth/login',(req,res) => {
-    const {username} = req.body;
-    const {password} = req.body;
-    
-    //tempoary variables to test endpoints
-    const validUsername = 'bob';
-    const validPassword = 'bobsPassword';
-    const newTokenAccess = 'ABCD1';
-    const newTokenRefresh = 'abcd2';
+app.post('/auth/login',(req,res) => {
+    const { username, password } = req.body;
 
-    if(!username || !password){
-        res.status(418).send({
-            error: 'you didnt send all the data silly!'
-        })
-    }else if((username == validUsername)&(password == validPassword)) {
-        res.status(200).send({
-            username: 'you succesfully sent the username : '+username,
-            password: password,
-            accessToken : newTokenAccess,
-            refreahToken : newTokenRefresh
-            
-        })
-    }else{
-
-        res.status(401).send({
-            error: 'Invalid details'
-        }) 
+    const user = users.find(u => u.username === username && (u.password + u.spice) === password); //im using === rather than == as == would treat '123' and 123 as equal which i dont want
+    if (!user) {
+        return res.status(401).send({ error: "Invalid username or password" });
     }
+
+    const accessToken = generateAccessToken(username);
+    const refreshToken = generateRefreshToken(username);
+
+    res.status(200).send({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+    });
     
 });
