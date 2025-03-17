@@ -8,7 +8,7 @@ const PORT = 8080;
 
 // Mock database (temporary)
 let users = [
-    { username: "bob", password: "bobsPassword", spice:"SpIcE" },
+    { username: "bob", password: "bobsPasswordSpIcE", spice:"SpIcE" },
 ];
 
 
@@ -43,6 +43,7 @@ app.post('/auth/internal/validate',(req,res) => {
     const {testToken} = req.body;
     
     const ValidToken = '1234';// this is a tempoary string showing a valid token so i can check everything works before linking it to the databas/ implementing jwt
+    const user="bob";//this will be derived from the token
 
     if(!testToken){
         res.status(418).send({
@@ -50,7 +51,9 @@ app.post('/auth/internal/validate',(req,res) => {
         })
     }else if (testToken == ValidToken){
         res.status(200).send({
-            token: 'you succesfully sent the valid token : '+testToken
+            message: 'you succesfully sent a valid token ',
+            userID: user,
+            ValidToken: true
         })
     }else{
         res.status(401).send({
@@ -122,7 +125,7 @@ app.post('/auth/register',(req,res) => {
 app.post('/auth/login',(req,res) => {
     const { username, password } = req.body;
 
-    const user = users.find(u => u.username === username && (u.password + u.spice) === password); //im using === rather than == as == would treat '123' and 123 as equal which i dont want
+    const user = users.find(u => u.username === username && u.password === (password+ u.spice)); //im using === rather than == as == would treat '123' and 123 as equal which i dont want
     if (!user) {
         return res.status(401).send({ error: "Invalid username or password" });
     }
@@ -136,3 +139,28 @@ app.post('/auth/login',(req,res) => {
     });
     
 });
+
+app.post('/auth/delete',(req,res) => {
+    const {testToken} = req.body;
+    
+    const ValidToken = '1234';// this is a tempoary string showing a valid token so i can check everything works before linking it to the databas/ implementing jwt
+    const user="bob";//this will be derived from the token
+
+    if(!testToken){
+        res.status(418).send({
+            error: 'you didnt send a token silly!'
+        })
+    }else if (testToken == ValidToken){
+        res.status(200).send({
+            message: 'you succesfully deleted the account associated with that token ',
+            userID: user
+        })
+    }else{
+        res.status(401).send({
+            error: 'Invalid or expired token'
+        }) 
+    }
+
+    
+});
+
