@@ -8,13 +8,6 @@ const { default: mongoose } = require('mongoose');
 
 const PORT = 8080;
 
-// Mock database (temporary)
-//              bob       bobsPassword
-let users = [
-    { username: "bob", password: "$2b$15$nShlDMY7GZmvTUnNXy4ya.7eDi447LPjEk7eBPiNq618urnT8ig5W", salt:"$2b$15$nShlDMY7GZmvTUnNXy4ya." },
-];
-//connect to DB
-
 mongoose.connect("mongodb://localhost:27017/User_authentication")
 
 const userSchema = new mongoose.Schema({
@@ -25,15 +18,11 @@ const userSchema = new mongoose.Schema({
 
 const userModel = mongoose.model("users",userSchema)
 
-
-
-
 app.use( express.json() );
 
-app.listen(
-    PORT,
-    () => console.log('its alive at : http://localhost:' + PORT)
-)
+function startServer() {
+    app.listen(PORT, () => console.log('Server is alive at: http://localhost:' + PORT));
+}
 
 //middle ware#######################################################################################################################################
 
@@ -45,26 +34,21 @@ function generateRefreshToken(user){
     return accessToken = jwt.sign({user} , process.env.REFRESH_TOKEN_SECRET, { expiresIn: "1d" });
 }
 
-function AuthenticateToken(token,res){
-    if(!token){
-        res.status(418).send({
-            error: 'you didnt send a token silly!'
-        })
-    }else{
-        jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,user) => { // i dont like the syntax but it works :(
-            if(err){
-                //the token is not valid
-                res.status(401).send({
-                    error: 'Invalid or expired token'
-                }) 
-            }else{
-                return user
-            }
-
-        })
-    } 
+function AuthenticateToken(token) {
+    return new Promise((resolve, reject) => {
+        if (!token) {
+            reject({ status: 418, error: 'you didnt send a token silly!' });
+        } else {
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+                if (err) {
+                    reject({ status: 401, error: 'Invalid or expired token' });
+                } else {
+                    resolve(user);
+                }
+            });
+        }
+    });
 }
-
 
 
 
@@ -73,15 +57,16 @@ function AuthenticateToken(token,res){
 
 //token validation 
 //this is also a good way to test that i ahve insomnia set up correctly and propelry understand how this works
+
 app.post('/auth/internal/validate',async(req,res) => {
     const {token} = req.body;
 
     try{
-        const user = await AuthenticateToken(token,res)
+        const decodedToken = await AuthenticateToken(token,res)
         
         res.status(200).send({
             message: 'you succesfully sent a valid token ',
-            userID: user,
+            userID: decodedToken.user,
             ValidToken: true
         })
     } catch (error) {
@@ -148,7 +133,6 @@ app.post('/auth/register',async (req,res) => { //I had to label this async to gi
                     username: username
                 });
             }
-            
         } catch (error) {
             res.status(500).send({ error: 'Something went wrong with hashing!' });
         }
@@ -160,56 +144,72 @@ app.post('/auth/register',async (req,res) => { //I had to label this async to gi
 //loging in a user
 app.post('/auth/login',async(req,res) => {
     const { username, password } = req.body;
-
     //find the entry in the database with the username, than get the slat and the password
     const user = await userModel.findOne({ username }); //im using === rather than == as == would treat '123' and 123 as equal which i dont want
 
-
-
     if (!user) {
         return res.status(401).send({ error: "account not recognised" });//
+    }else if (await bcrypt.compare(password, user.password)) {
+        const accessToken = generateAccessToken(username);
+        const refreshToken = generateRefreshToken(username);
+
+        res.status(200).send({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+        }); 
     }else{
-        
-        correctPassword=user.password;
-        salt=user.salt;
-        if (await bcrypt.compare(password, correctPassword)) {
-            const accessToken = generateAccessToken(username);
-            const refreshToken = generateRefreshToken(username);
+        return res.status(401).send({ error: "Invalid username or password" });
+    }
+});
+
+app.post('/auth/update',async(req,res) => {
+    const {token,oldPassword,newPassword} = req.body;
+
+    const decodedToken = await AuthenticateToken(token,res)
+    const user = await userModel.findOne({ username: decodedToken.user});
+    if(user){
+        if (await bcrypt.compare(oldPassword, user.password)) {
+            const salt = await bcrypt.genSalt(15);  
+            const hashedPassword = await bcrypt.hash(newPassword, salt);  
+
+            user.password = hashedPassword;
+            user.salt = salt;
     
             res.status(200).send({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-            }); 
+                message: 'you succesfully updated the account password associated with that token ',
+                userID_UPDATED: decodedToken.user
+            })
         }else{
             return res.status(401).send({ error: "Invalid username or password" });
         }
-        
     }
-    
 });
 
-app.post('/auth/delete',(req,res) => {
-    const {testToken} = req.body;
-    
-    const ValidToken = '1234';// this is a tempoary string showing a valid token so i can check everything works before linking it to the databas/ implementing jwt
-    const user="bob";//this will be derived from the token
+app.post('/auth/delete', async (req, res) => {
+    const { token, hashedPassword } = req.body;
 
-    if(!testToken){
-        res.status(418).send({
-            error: 'you didnt send a token silly!'
-        })
-    }else if (testToken == ValidToken){
-        res.status(200).send({
-            message: 'you succesfully deleted the account associated with that token ',
-            userID: user
-        })
-    }else{
-        res.status(401).send({
-            error: 'Invalid or expired token'
-        }) 
+    const decodedToken = await AuthenticateToken(token,res);
+    const user = await userModel.findOne({ username: decodedToken.user});
+    if(user){
+        if (await bcrypt.compare(hashedPassword, user.password)) {
+            await userModel.deleteOne({ username: decodedToken.user });
+            res.status(200).send({
+                message: 'You successfully deleted the account associated with that token.',
+                userID_DELETED: decodedToken.user,
+            });
+        }else{
+            return res.status(401).send({ error: "Invalid username or password" });
+        }
     }
-
-    
 });
-// Export app and startServer function
+
+
+
+
+// Export the app and startServer function properly
 module.exports = { app, startServer };
+
+// Start the server if the file is run directly
+if (require.main === module) {
+    startServer();
+}
