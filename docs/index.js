@@ -3,13 +3,29 @@ require('dotenv').config();
 const express = require('express');
 const app = express();
 const jwt = require('jsonwebtoken');
+const bcrypt = require("bcryptjs");
+const { default: mongoose } = require('mongoose');
 
 const PORT = 8080;
 
 // Mock database (temporary)
+//              bob       bobsPassword
 let users = [
-    { username: "bob", password: "bobsPasswordSpIcE", spice:"SpIcE" },
+    { username: "bob", password: "$2b$15$nShlDMY7GZmvTUnNXy4ya.7eDi447LPjEk7eBPiNq618urnT8ig5W", salt:"$2b$15$nShlDMY7GZmvTUnNXy4ya." },
 ];
+//connect to DB
+
+mongoose.connect("mongodb://localhost:27017/User_authentication")
+
+const userSchema = new mongoose.Schema({
+    username: String,
+    password: String,
+    salt: String
+})
+
+const userModel = mongoose.model("users",userSchema)
+
+
 
 
 app.use( express.json() );
@@ -89,54 +105,76 @@ app.post('/auth/internal/refresh',(req,res) => {
 });
 
 //registering a new user
-app.post('/auth/register',(req,res) => {
+app.post('/auth/register',async (req,res) => { //I had to label this async to give the hash enough time to compute
     const {username} = req.body;
     const {password} = req.body;
     
-    
-    /* 
-    "username": "bob"
-    "password" : "bobsPassword"
-    */
 
     if(!username || !password){
         res.status(418).send({
             error: 'you didnt send all the data silly!'
         })
-    }else {
-        res.status(200).send({
-            username: 'you succesfully sent the username : '+username,
-            password: password,
-            result: 'succesfully added to the totally real database'
-        })
+    }else{//need to check username doesnt exist in db already
+        
+        try {
+            // Check if the user already exists in the database
+            const existingUser = await userModel.findOne({ username });
+    
+            if (existingUser) {
+                return res.status(409).send({ error: 'Username already taken. Choose another one!' });
+            }else{
+                const salt = await bcrypt.genSalt(15);  // we need the await as the hashing takes a while(to help protect against brute force) 2^N(15 at moment)
+                                                        // 15 was said to be a good level of work on this video:   https://www.youtube.com/watch?v=qgpsIBLvrGY  but i may deecrease it as its running a bit TOO slow
+                const hashedPassword = await bcrypt.hash(password, salt);  
+
+                const newUser = new userModel({
+                    username: username,
+                    password: hashedPassword,
+                    salt: salt
+                });
+                await newUser.save(); // Save the user to MongoDB
+                res.status(201).send({
+                    message: 'User successfully registered!',
+                    username: username
+                });
+            }
+            
+        } catch (error) {
+            res.status(500).send({ error: 'Something went wrong with hashing!' });
+        }
     }
-    /*else{
-
-        res.status(401).send({
-            error: 'Invalid details'
-        }) 
-    }*/
-    // the above will neeed to be included but as i sont currently have anything to validate if a password and username is acceptable i had to comment it out for now
-
+    
 });
 
 
 //loging in a user
-app.post('/auth/login',(req,res) => {
+app.post('/auth/login',async(req,res) => {
     const { username, password } = req.body;
 
-    const user = users.find(u => u.username === username && u.password === (password+ u.spice)); //im using === rather than == as == would treat '123' and 123 as equal which i dont want
+    //find the entry in the database with the username, than get the slat and the password
+    const user = await userModel.findOne({ username }); //im using === rather than == as == would treat '123' and 123 as equal which i dont want
+
+
+
     if (!user) {
-        return res.status(401).send({ error: "Invalid username or password" });
+        return res.status(401).send({ error: "account not recognised" });//
+    }else{
+        
+        correctPassword=user.password;
+        salt=user.salt;
+        if (await bcrypt.compare(password, correctPassword)) {
+            const accessToken = generateAccessToken(username);
+            const refreshToken = generateRefreshToken(username);
+    
+            res.status(200).send({
+                access_token: accessToken,
+                refresh_token: refreshToken,
+            }); 
+        }else{
+            return res.status(401).send({ error: "Invalid username or password" });
+        }
+        
     }
-
-    const accessToken = generateAccessToken(username);
-    const refreshToken = generateRefreshToken(username);
-
-    res.status(200).send({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-    });
     
 });
 
@@ -163,4 +201,3 @@ app.post('/auth/delete',(req,res) => {
 
     
 });
-
