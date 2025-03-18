@@ -38,14 +38,32 @@ app.listen(
 //middle ware#######################################################################################################################################
 
 function generateAccessToken(user){
-    return accessToken = jwt.sign({user} , process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15s" });//short for testing
+    return accessToken = jwt.sign({user} , process.env.ACCESS_TOKEN_SECRET, { expiresIn: "10m" });//short for testing
 }
 
 function generateRefreshToken(user){
     return accessToken = jwt.sign({user} , process.env.REFRESH_TOKEN_SECRET, { expiresIn: "1d" });
 }
 
+function AuthenticateToken(token,res){
+    if(!token){
+        res.status(418).send({
+            error: 'you didnt send a token silly!'
+        })
+    }else{
+        jwt.verify(token,process.env.ACCESS_TOKEN_SECRET,(err,user) => { // i dont like the syntax but it works :(
+            if(err){
+                //the token is not valid
+                res.status(401).send({
+                    error: 'Invalid or expired token'
+                }) 
+            }else{
+                return user
+            }
 
+        })
+    } 
+}
 
 
 
@@ -55,29 +73,21 @@ function generateRefreshToken(user){
 
 //token validation 
 //this is also a good way to test that i ahve insomnia set up correctly and propelry understand how this works
-app.post('/auth/internal/validate',(req,res) => {
-    const {testToken} = req.body;
-    
-    const ValidToken = '1234';// this is a tempoary string showing a valid token so i can check everything works before linking it to the databas/ implementing jwt
-    const user="bob";//this will be derived from the token
+app.post('/auth/internal/validate',async(req,res) => {
+    const {token} = req.body;
 
-    if(!testToken){
-        res.status(418).send({
-            error: 'you didnt send a token silly!'
-        })
-    }else if (testToken == ValidToken){
+    try{
+        const user = await AuthenticateToken(token,res)
+        
         res.status(200).send({
             message: 'you succesfully sent a valid token ',
             userID: user,
             ValidToken: true
         })
-    }else{
-        res.status(401).send({
-            error: 'Invalid or expired token'
-        }) 
+    } catch (error) {
+        res.status(500).send({ error: 'Something went wrong with the validation' });
     }
 
-    
 });
 
 //token refreshing 
@@ -201,3 +211,5 @@ app.post('/auth/delete',(req,res) => {
 
     
 });
+// Export app and startServer function
+module.exports = { app, startServer };
