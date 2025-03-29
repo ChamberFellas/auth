@@ -88,3 +88,4 @@ console.log(outputTESTdelete);
 
 const outputTESTupdate = await updateAccount('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoidGVzdCIsImlhdCI6MTc0MjMxOTA5OCwiZXhwIjoxNzQyMzE5Njk4fQ.LxokwlSg_MCLE_Utrz6k-h8YPoMwtqFyYNPcK9oU6Zs','secondPassword','test','password');         
 console.log(outputTESTupdate);
+//import { registerUser, loginUser, validateToken, deleteAccount, updateAccount } from './client.js';
