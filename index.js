@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const { default: mongoose } = require('mongoose');
 
 const PORT = 8080;
+const host = process.env.MY_IP_ADDRESS
 
 mongoose.connect("mongodb://localhost:27017/User_authentication")
 
@@ -21,7 +22,7 @@ const userModel = mongoose.model("users",userSchema)
 app.use( express.json() );
 
 function startServer() {
-    app.listen(PORT, () => console.log('Server is alive at: http://localhost:' + PORT));
+    app.listen(PORT, () => console.log('Server is alive at: http://'+host+':' + PORT ));
 }
 
 //middle ware#######################################################################################################################################
@@ -76,6 +77,7 @@ app.post('/auth/internal/validate',async(req,res) => {
 });
 
 //token refreshing 
+/*
 app.post('/auth/internal/refresh',(req,res) => {
     const {testToken} = req.body;
     
@@ -98,7 +100,7 @@ app.post('/auth/internal/refresh',(req,res) => {
 
     
 });
-
+*/
 //registering a new user
 app.post('/auth/register',async (req,res) => { //I had to label this async to give the hash enough time to compute
     const {username} = req.body;
@@ -151,11 +153,11 @@ app.post('/auth/login',async(req,res) => {
         return res.status(401).send({ error: "account not recognised" });//
     }else if (await bcrypt.compare(password, user.password)) {
         const accessToken = generateAccessToken(username);
-        const refreshToken = generateRefreshToken(username);
+        //const refreshToken = generateRefreshToken(username);
 
         res.status(200).send({
             access_token: accessToken,
-            refresh_token: refreshToken,
+            //refresh_token: refreshToken,
         }); 
     }else{
         return res.status(401).send({ error: "Invalid username or password" });
