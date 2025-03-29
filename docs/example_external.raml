@@ -1,36 +1,108 @@
 #%RAML 1.0
-title: Example External API
-version: v1
+title: Authentication Service (External)
+version: v2
 baseUri: https://example.com/api/v1/external
 mediaType: application/json
 
-/status:
+securitySchemes:
+  JWT:
+    description: Use a JSON Web Token (JWT) for authentication.
+    type: Pass Through
+    describedBy:
+      headers:
+        Authorization:
+          description: "JWT token in the format 'Bearer {token}'"
+          type: string
+      responses:
+        401:
+          description: Unauthorized - Invalid or expired token
+
+types:
+  User:
+    type: object
+    properties:
+      username: string
+      password: 
+        type: string
+        description: while the password will be hashed on the server side. can all passwords be hashed client side aswell, using H(password+spice) in this instance user the user name for the spice. (for anyone who doesnt do pure CS and is confused by this just reach out and ill be happy to explain what i mean :D)
+  TokenResponse:
+    type: object
+    properties:
+      access_token: string
+      refresh_token: string
+
+  UpdateUser:
+    type: object
+    properties:
+      passwordOLD: 
+        type: string
+        description: while the password will be hashed on the server side. can all passwords be hashed client side aswell, using H(password+spice) in this instance user the user name for the spice. (for anyone who doesnt do pure CS and is confused by this just reach out and ill be happy to explain what i mean :D)
+        type: string
+        description: while the password will be hashed on the server side. can all passwords be hashed client side aswell, using H(password+spice) in this instance user the user name for the spice. (for anyone who doesnt do pure CS and is confused by this just reach out and ill be happy to explain what i mean :D)
+      username: string
+
+/auth:
+  /register:
+    post:
+      description: Register a new user
+      body:
+        application/json:
+          type: User
+      responses:
+        201:
+          body:
+            application/json:
+              example: { "message": "User created successfully" }
+        400:
+          description: Invalid input
+
+  /login:
     get:
-        description: Get status of the external API
-        responses:
-            200:
-                description: Status of the external API
-                body:
-                    application/json:
-                        type: object
-                        properties:
-                            status: string
-                            message: string
+      description: User login, returns JWT tokens.
+      body:
+        application/json:
+          type: User
+      responses:
+        200:
+          body:
+            application/json:
+              type: TokenResponse
+              example: { 
+                "access_token": "JWT_ACCESS_TOKEN_HERE", 
+                "refresh_token": "JWT_REFRESH_TOKEN_HERE" 
+              }
+        401:
+          description: Invalid username or password
 
-            404:
-                description: Not Found
-                body:
-                    application/json:
-                        type: object
-                        properties:
-                            status: string
-                            message: string
+ 
 
-            500:
-                description: Internal Server Error
-                body:
-                    application/json:
-                        type: object
-                        properties:
-                            status: string
-                            message: string
+  /self:
+  patch:
+    description: User updates own account details
+    securedBy: [JWT]
+    body:
+      application/json:
+        type: UpdateUser
+    responses:
+      200:
+        description: User details successfully updated
+        body:
+          application/json:
+            example: { "message": "User updated" }
+      400:
+        description: Invalid input (e.g., invalid data format or missing fields)
+      401:
+        description: Unauthorized (e.g., invalid or expired JWT)
+
+  delete:
+    description: User deletes own account
+    securedBy: [JWT]
+    responses:
+      200:
+        description: Account successfully deleted
+        body:
+          application/json:
+            example: { "message": "Account deleted" }
+      401:
+        description: Unauthorized (e.g., invalid or expired JWT)
+
